@@ -1,0 +1,37 @@
+
+# VAIT 1 — Private configuration
+.env
+.env.*
+!.env.example
+
+# Python environment
+.venv/
+__pycache__/
+*.pyc
+
+# Private memories and conversations
+memory.json
+conversation_history.json
+
+# Secret API credentials
+.env
+.env.*
+!.env.example
+
+# Private Vait memories
+vait_memory.json
+
+# Python temporary files
+__pycache__/
+*.pyc
+
+# Local Python environments
+venv/
+.venv/
+
+# Development backups
+main_before_memory.py
+main_backup_oct11.py
+
+# Temporary files
+*.tmp
