@@ -234,14 +234,11 @@ def chat(request: ChatRequest):
             "response": response.output_text
         }
 
-        except Exception as error:
+    except Exception as error:
 
-        print("VAIT API ERROR:", type(error).__name__, flush=True)
-        print("STATUS CODE:", getattr(error, "status_code", "N/A"), flush=True)
-        print("ERROR CODE:", getattr(error, "code", "N/A"), flush=True)
-        print("ERROR MESSAGE:", getattr(error, "message", str(error)), flush=True)
+        print("VAIT API ERROR:", type(error).__name__)
 
         raise HTTPException(
             status_code=502,
             detail="AI provider request failed."
-        ) from error
+        )
