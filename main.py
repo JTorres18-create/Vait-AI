@@ -242,3 +242,74 @@ def chat(request: ChatRequest):
             status_code=502,
             detail="AI provider request failed."
         )
+# ==========================================
+# VAIT 1.0 — PRIVATE SPEECH ENDPOINT
+# Append at the END of existing main.py.
+# ==========================================
+
+class SpeakRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1500)
+    voice: Literal["jarvis"] = "jarvis"
+
+
+@app.post("/speak", dependencies=[Depends(require_vait_token)])
+def speak(request: SpeakRequest):
+    import json
+    import urllib.error
+    import urllib.request
+    from fastapi.responses import Response
+
+    fish_key = os.getenv("FISH_AUDIO_API_KEY", "").strip()
+    jarvis_voice_id = os.getenv("FISH_JARVIS_VOICE_ID", "").strip()
+
+    if not fish_key or not jarvis_voice_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Voice provider is not configured."
+        )
+
+    payload = json.dumps({
+        "text": request.text,
+        "reference_id": jarvis_voice_id,
+        "format": "mp3"
+    }).encode("utf-8")
+
+    api_request = urllib.request.Request(
+        "https://api.fish.audio/v1/tts",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {fish_key}",
+            "Content-Type": "application/json",
+            "model": "s2.1-pro-free"
+        },
+        method="POST"
+    )
+
+    try:
+        with urllib.request.urlopen(api_request, timeout=60) as upstream:
+            audio = upstream.read(8_000_001)
+    except urllib.error.HTTPError as error:
+        # Log only the status, not credentials or personal speech text.
+        print("VAIT SPEECH PROVIDER HTTP:", error.code)
+        raise HTTPException(
+            status_code=502,
+            detail="Speech provider rejected the request."
+        ) from None
+    except (urllib.error.URLError, TimeoutError):
+        raise HTTPException(
+            status_code=502,
+            detail="Speech provider is temporarily unavailable."
+        ) from None
+
+    if not audio or len(audio) > 8_000_000:
+        raise HTTPException(
+            status_code=502,
+            detail="Invalid audio returned by speech provider."
+        )
+
+    return Response(
+        content=audio,
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "no-store"}
+    )
+
