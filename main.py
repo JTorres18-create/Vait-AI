@@ -312,4 +312,6 @@ def speak(request: SpeakRequest):
         media_type="audio/mpeg",
         headers={"Cache-Control": "no-store"}
     )
-
+# VAIT Glasses integration
+from glasses_ui import build_glasses_router
+app.include_router(build_glasses_router(chat, ChatRequest))
