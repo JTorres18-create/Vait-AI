@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>VAIT — Glasses</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; width:100%; min-height:100%; background:#000; color:#f3faff; }
+    body { display:flex; align-items:stretch; justify-content:center; }
+    .shell { width:100%; min-height:100dvh; max-width:620px; padding:clamp(22px, 6vw, 38px); display:flex; flex-direction:column; gap:17px; }
+    header { display:flex; align-items:center; gap:14px; margin-bottom:7px; }
+    .mark { width:52px; height:52px; flex:none; border:2px solid #5ceaff; border-radius:16px; color:#6eeaff; display:grid; place-items:center; font-weight:900; font-size:30px; box-shadow:0 0 18px #0b7ba955; }
+    h1 { margin:0; font-size:29px; letter-spacing:.16em; line-height:1; font-weight:850; }
+    .kicker { margin:7px 0 0; color:#8fb9c9; letter-spacing:.09em; font-size:12px; }
+    .line { height:1px; background:linear-gradient(90deg,#38d2ff99,transparent); }
+    .status { min-height:20px; font-size:15px; color:#9bd6e7; }
+    .panel { padding:21px; border:1px solid #316c80; border-radius:19px; background:#0b1b25; }
+    .label { font-size:13px; letter-spacing:.08em; color:#89aabb; font-weight:750; text-transform:uppercase; margin-bottom:10px; }
+    input { width:100%; border-radius:13px; border:2px solid #315466; background:#091017; padding:16px 15px; font-size:20px; color:#fff; min-height:58px; outline:none; }
+    input:focus-visible, button:focus-visible { outline:3px solid #fdf88a; outline-offset:3px; }
+    input::placeholder { color:#7894a4; }
+    button { cursor:pointer; border:2px solid #42ddfa; border-radius:13px; background:#033d58; color:#ebfbff; padding:15px 16px; font-size:18px; font-weight:750; min-height:56px; }
+    button:disabled { opacity:.6; cursor:wait; }
+    button.secondary { background:transparent; color:#b7e5f1; border-color:#426c80; }
+    .actions { display:flex; gap:12px; margin-top:13px; }
+    .actions button:first-child { flex:2; } .actions button:last-child { flex:1; }
+    #loginBtn { margin-top:14px; width:100%; }
+    .response-panel { flex:1; min-height:145px; display:flex; flex-direction:column; overflow:hidden; }
+    .answer { flex:1; min-height:120px; font-size:20px; line-height:1.43; overflow-y:auto; white-space:pre-wrap; overflow-wrap:anywhere; color:#f6fcff; }
+    .mini { font-size:12px; color:#73929f; line-height:1.4; }
+    .hidden { display:none !important; }
+    #signOut { margin-top:auto; align-self:flex-start; min-height:36px; font-size:13px; padding:7px 12px; color:#92bdcd; border:1px solid #355265; background:transparent; }
+    @media (max-height:610px) { .shell { gap:12px; padding:22px 27px; } header { margin:0; } .panel { padding:16px; } .answer { font-size:18px; } }
+    @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="mark" aria-hidden="true">V</div>
+      <div><h1>VAIT</h1><p class="kicker">VANESSA JARVIS TORRES</p></div>
+    </header>
+    <div class="line"></div>
+    <div class="status" id="status" role="status" aria-live="polite">Connecting…</div>
+
+    <section id="loginPanel" class="panel hidden" aria-label="Unlock private assistant">
+      <div class="label">Private access</div>
+      <form id="loginForm">
+        <input id="pin" type="password" autocomplete="off" maxlength="200" placeholder="Enter VAIT passcode" aria-label="Private VAIT passcode" required />
+        <button id="loginBtn" type="submit">Unlock VAIT</button>
+      </form>
+      <p class="mini">This passcode is set privately in Railway, not stored in the app's code.</p>
+    </section>
+
+    <section id="chatPanel" class="hidden" aria-label="Talk to VAIT">
+      <form id="askForm" class="panel">
+        <label class="label" for="question">Ask me anything</label>
+        <input id="question" type="text" maxlength="1200" placeholder="Tap to dictate or type" autocomplete="off" required />
+        <div class="actions">
+          <button id="askBtn" type="submit">Ask VAIT</button>
+          <button id="clearBtn" type="button" class="secondary">Clear</button>
+        </div>
+      </form>
+    </section>
+    <section id="responsePanel" class="panel response-panel hidden" aria-label="VAIT response">
+      <div class="label">VAIT says</div>
+      <div id="answer" class="answer" aria-live="polite">I'm ready. Ask your first question.</div>
+    </section>
+    <button id="signOut" class="hidden" type="button">Lock VAIT</button>
+  </main>
+  <script>
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const status = $('status');
+    const loginPanel = $('loginPanel');
+    const chatPanel = $('chatPanel');
+    const responsePanel = $('responsePanel');
+    const signOut = $('signOut');
+    let busy = false;
+
+    function unlocked(ok) {
+      loginPanel.classList.toggle('hidden', ok);
+      chatPanel.classList.toggle('hidden', !ok);
+      responsePanel.classList.toggle('hidden', !ok);
+      signOut.classList.toggle('hidden', !ok);
+      status.textContent = ok ? '●  CLOUD LINK ACTIVE' : '●  PRIVATE MODE · LOCKED';
+    }
+    async function call(url, method='GET', body) {
+      const options = {method, credentials:'same-origin', cache:'no-store'};
+      if (body !== undefined) {
+        options.headers = {'Content-Type':'application/json'};
+        options.body = JSON.stringify(body);
+      }
+      const response = await fetch(url, options);
+      let payload = {};
+      try { payload = await response.json(); } catch (_) {}
+      if (!response.ok) {
+        const message = typeof payload.detail === 'string' ? payload.detail : 'VAIT could not complete the request.';
+        const error = new Error(message);
+        error.status = response.status;
+        throw error;
+      }
+      return payload;
+    }
+    async function initialize() {
+      try {
+        const result = await call('/glasses/api/status');
+        unlocked(Boolean(result.authenticated));
+      } catch (_) {
+        unlocked(false);
+        status.textContent = 'Connection unavailable. Check network.';
+      }
+    }
+    $('loginForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (busy) return;
+      busy = true;
+      $('loginBtn').disabled = true;
+      status.textContent = 'Unlocking…';
+      try {
+        await call('/glasses/api/login','POST',{pin:$('pin').value});
+        $('pin').value = '';
+        unlocked(true);
+        $('question').focus();
+      } catch (error) { unlocked(false); status.textContent = error.message; }
+      finally { busy = false; $('loginBtn').disabled = false; }
+    });
+    $('askForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const message = $('question').value.trim();
+      if (!message || busy) return;
+      busy = true;
+      $('askBtn').disabled = true;
+      $('answer').textContent = 'Thinking…';
+      status.textContent = '●  CONTACTING VAIT CLOUD';
+      try {
+        const result = await call('/glasses/api/chat','POST',{message});
+        $('answer').textContent = result.response || 'I received an empty response. Try again.';
+        $('question').value = '';
+        status.textContent = '●  CLOUD LINK ACTIVE';
+      } catch (error) {
+        if (error.status === 401) unlocked(false);
+        $('answer').textContent = 'Connection error. ' + error.message;
+        status.textContent = '●  REQUEST FAILED';
+      } finally { busy=false; $('askBtn').disabled=false; }
+    });
+    $('clearBtn').addEventListener('click', () => {
+      $('question').value = '';
+      $('answer').textContent = "I'm ready. Ask your next question.";
+      $('question').focus();
+    });
+    signOut.addEventListener('click', async () => {
+      try { await call('/glasses/api/logout','POST'); }
+      catch (_) { /* Clear the visible UI even if the network is down. */ }
+      unlocked(false);
+      $('answer').textContent = '';
+    });
+    // Arrow keys simulate the Neural Band D-pad when focus is not in a text field.
+    document.addEventListener('keydown', (event) => {
+      if (!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.key)) return;
+      if (event.target.tagName === 'INPUT' && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) return;
+      const focusables = Array.from(document.querySelectorAll('input,button')).filter(el =>
+        !el.disabled && el.getClientRects().length);
+      if (!focusables.length) return;
+      const index = focusables.indexOf(document.activeElement);
+      const direction = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1;
+      const next = (index + direction + focusables.length) % focusables.length;
+      focusables[next].focus();
+      event.preventDefault();
+    });
+    initialize();
+  </script>
+</body>
+</html>
