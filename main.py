@@ -1,5 +1,6 @@
 
 from memory_store import recall, remember
+from conversation_store import get_recent_messages, save_exchange
 import os
 import secrets
 from pathlib import Path
@@ -223,17 +224,16 @@ def chat(request: ChatRequest):
         response = client.responses.create(
             model=model,
             instructions=instructions,
-            input=request.message,
+            input=get_recent_messages() + [{"role": "user", "content": request.message}],
             max_output_tokens=500
         )
-
+        save_exchange(request.message, response.output_text)
         return {
             "assistant": "Vait",
             "model": model,
             "routing_reason": reason,
             "response": response.output_text
         }
-
     except Exception as error:
 
         print("VAIT API ERROR:", type(error).__name__)
